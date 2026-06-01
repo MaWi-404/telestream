@@ -8,6 +8,9 @@
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/hls.js@latest/dist/hls.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -413,6 +416,19 @@ body::before{content:'';position:fixed;inset:0;background-image:url("data:image/
 <body>
 <div id="root"></div>
 <script type="text/babel">
+const firebaseConfig = {
+  apiKey: "AIzaSyAXfpkZLmpJhbvzT8EYE_7i-Zcxi-qlyJk",
+  authDomain: "tcol-757cf.firebaseapp.com",
+  projectId: "tcol-757cf",
+  storageBucket: "tcol-757cf.firebasestorage.app",
+  messagingSenderId: "821199584765",
+  appId: "1:821199584765:web:e04b0832814dd9715aed94"
+};
+
+firebase.initializeApp(firebaseConfig);
+
+const auth = firebase.auth();
+const db = firebase.firestore();
 const { useState,useEffect,useRef,useCallback,useMemo,createContext,useContext } = React;
 const STORAGE_KEY='ts_lists_v2';
 const FAVS_KEY='ts_favs_v2';
@@ -648,6 +664,8 @@ function ListsView({playlists,channels,onAdd,onEdit,onDelete,onReload}){
 
 /* ── App ── */
 function App(){
+  const [user,setUser] = useState(null);
+  const [authLoading,setAuthLoading] = useState(true);	
   const[playlists,setPlaylists]=useLs(STORAGE_KEY,[]);
   const[favIds,setFavIds]=useLs(FAVS_KEY,[]);
   const[channels,setChannels]=useState({});
@@ -719,6 +737,17 @@ function App(){
     setLoading(l=>({...l,[pl.id]:false}));
   },[fetchWithProxies]);
 
+useEffect(() => {
+
+  const unsubscribe = auth.onAuthStateChanged((u) => {
+    setUser(u);
+    setAuthLoading(false);
+  });
+
+  return unsubscribe;
+
+}, []);
+
   useEffect(()=>{playlists.forEach(pl=>{if(!channels[pl.id])loadPlaylist(pl)})},[]);
 
   const addList=useCallback(({name,url})=>{
@@ -760,6 +789,22 @@ function App(){
     {id:'favorites',icon:'★',label:'Favoritos',count:favChs.length},
     {id:'lists',icon:'📋',label:'Mis listas',count:playlists.length},
   ];
+
+    async function loginGoogle(){
+
+  const provider = new firebase.auth.GoogleAuthProvider();
+
+  try{
+    await auth.signInWithPopup(provider);
+  }catch(err){
+    console.error(err);
+  }
+
+}
+
+async function logoutGoogle(){
+  await auth.signOut();
+}
 
   return(
     <div className="app">
@@ -807,6 +852,15 @@ function App(){
             <input placeholder="Buscar canales, grupos…" value={search} onChange={e=>setSearch(e.target.value)}/>
           </div>
           <div className="topbar-right">
+	    {!user ? (
+  <button className="btn" onClick={loginGoogle}>
+    Iniciar sesión
+  </button>
+) : (
+  <button className="btn" onClick={logoutGoogle}>
+    {user.displayName}
+  </button>
+)}
             {current&&(
               <div className="live-badge">
                 <div className="live-dot"/>
