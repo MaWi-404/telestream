@@ -740,6 +740,12 @@ function App(){
 
 	useEffect(()=>{
 
+  console.log("SYNC EFFECT",{
+    user:!!user,
+    cloudReady,
+    playlists:playlists?.length
+  });
+
   if(!user) return;
   if(!cloudReady) return;
 
@@ -823,7 +829,10 @@ useEffect(() => {
 async function logoutGoogle(){
   await auth.signOut();
 }
+	
 async function saveCloud(){
+
+  console.log("SAVE CLOUD EJECUTADO");
 
   if(!user) return;
 
@@ -838,8 +847,10 @@ async function saveCloud(){
         updatedAt:Date.now()
       },{merge:true});
 
+    console.log("FIRESTORE GUARDADO");
+
   }catch(err){
-    console.error(err);
+    console.error("FIRESTORE ERROR",err);
   }
 
 }
