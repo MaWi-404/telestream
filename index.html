@@ -761,17 +761,20 @@ function App(){
 useEffect(() => {
 
   const unsubscribe = auth.onAuthStateChanged((u) => {
+
     setUser(u);
     setAuthLoading(false);
-	  if(u){
-  loadCloud();
-}
+
+    if(u){
+      loadCloud(u);
+    }
+
   });
 
   return unsubscribe;
 
 }, []);
-
+	
   useEffect(()=>{playlists.forEach(pl=>{if(!channels[pl.id])loadPlaylist(pl)})},[]);
 
   const addList=useCallback(({name,url})=>{
@@ -854,20 +857,20 @@ async function saveCloud(){
   }
 
 }
-	async function loadCloud(){
-
-  if(!user) return;
+async function loadCloud(firebaseUser){
+console.log("LOAD CLOUD", firebaseUser.uid);
+  if(!firebaseUser) return;
 
   try{
 
-    const doc=await db
+    const doc = await db
       .collection("users")
-      .doc(user.uid)
+      .doc(firebaseUser.uid)
       .get();
 
     if(doc.exists){
 
-      const data=doc.data();
+      const data = doc.data();
 
       if(Array.isArray(data.playlists))
         setPlaylists(data.playlists);
@@ -876,7 +879,7 @@ async function saveCloud(){
         setFavIds(data.favIds);
 
     }
-
+console.log("CLOUD READY");
     setCloudReady(true);
 
   }catch(err){
