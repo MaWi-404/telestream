@@ -435,7 +435,7 @@ const FAVS_KEY='ts_favs_v2';
 const PAGE_SIZE=60;
 const AppCtx=createContext(null);
 
-function uid(){return Math.random().toString(36).slice(2,9)}
+function uid(){return id:btoa(url).toString(36).slice(2,9)}
 
 function parseM3U(text,listId,listName){
   const lines=text.split('\n').map(l=>l.trim()).filter(Boolean);
@@ -664,6 +664,7 @@ function ListsView({playlists,channels,onAdd,onEdit,onDelete,onReload}){
 
 /* ── App ── */
 function App(){
+  const [cloudReady,setCloudReady]=useState(false);
   const [user,setUser] = useState(null);
   const [authLoading,setAuthLoading] = useState(true);	
   const[playlists,setPlaylists]=useLs(STORAGE_KEY,[]);
@@ -737,11 +738,28 @@ function App(){
     setLoading(l=>({...l,[pl.id]:false}));
   },[fetchWithProxies]);
 
+	useEffect(()=>{
+
+  if(!user) return;
+  if(!cloudReady) return;
+
+  saveCloud();
+
+},[
+  playlists,
+  favIds,
+  user,
+  cloudReady
+]);
+
 useEffect(() => {
 
   const unsubscribe = auth.onAuthStateChanged((u) => {
     setUser(u);
     setAuthLoading(false);
+	  if(u){
+  loadCloud();
+}
   });
 
   return unsubscribe;
@@ -805,7 +823,56 @@ useEffect(() => {
 async function logoutGoogle(){
   await auth.signOut();
 }
+async function saveCloud(){
 
+  if(!user) return;
+
+  try{
+
+    await db
+      .collection("users")
+      .doc(user.uid)
+      .set({
+        playlists,
+        favIds,
+        updatedAt:Date.now()
+      },{merge:true});
+
+  }catch(err){
+    console.error(err);
+  }
+
+}
+	async function loadCloud(){
+
+  if(!user) return;
+
+  try{
+
+    const doc=await db
+      .collection("users")
+      .doc(user.uid)
+      .get();
+
+    if(doc.exists){
+
+      const data=doc.data();
+
+      if(Array.isArray(data.playlists))
+        setPlaylists(data.playlists);
+
+      if(Array.isArray(data.favIds))
+        setFavIds(data.favIds);
+
+    }
+
+    setCloudReady(true);
+
+  }catch(err){
+    console.error(err);
+  }
+
+}
   return(
     <div className="app">
       {/* Sidebar overlay mobile */}
