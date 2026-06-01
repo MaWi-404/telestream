@@ -1,0 +1,906 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TeleStream</title>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/hls.js@latest/dist/hls.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Outfit:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#080a0f;
+  --bg2:#0d1018;
+  --bg3:#131720;
+  --bg4:#1a2030;
+  --glass:rgba(255,255,255,0.04);
+  --glass2:rgba(255,255,255,0.07);
+  --border:rgba(255,255,255,0.07);
+  --border2:rgba(255,255,255,0.12);
+  --accent:#e63946;
+  --accent2:#ff6b6b;
+  --accent-glow:rgba(230,57,70,0.35);
+  --blue:#4361ee;
+  --blue-glow:rgba(67,97,238,0.3);
+  --text:#f0f2f7;
+  --text2:#8b92a5;
+  --text3:#4a5068;
+  --card:#0f1320;
+  --radius:12px;
+  --radius-sm:8px;
+  --radius-lg:18px;
+  --radius-xl:24px;
+}
+html,body,#root{min-height:100%;overflow:auto}
+body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);font-size:14px;line-height:1.5}
+
+/* Noise texture overlay */
+body::before{content:'';position:fixed;inset:0;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");opacity:.4;pointer-events:none;z-index:0}
+
+::-webkit-scrollbar{width:3px;height:3px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--bg4);border-radius:99px}
+
+/* ── LAYOUT ── */
+.app{display:flex;min-height:100vh;overflow:visible;position:relative;z-index:1}
+
+/* ── SIDEBAR ── */
+.sidebar{
+  width:220px;min-width:220px;height:100vh;
+  background:var(--bg2);
+  border-right:1px solid var(--border);
+  display:flex;flex-direction:column;
+  transition:transform .3s cubic-bezier(.4,0,.2,1);
+  z-index:100;position:relative;overflow:hidden;
+  flex-shrink:0;
+}
+.sidebar::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:200px;
+  background:radial-gradient(ellipse at 50% 0%, rgba(230,57,70,0.12) 0%, transparent 70%);
+  pointer-events:none;
+}
+.sidebar.hidden{transform:translateX(-100%);position:fixed;top:0;bottom:0;left:0}
+.sidebar-logo{padding:14px 16px 12px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border);flex-shrink:0}
+.logo-mark{width:32px;height:32px;background:var(--accent);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;box-shadow:0 0 20px var(--accent-glow);flex-shrink:0}
+.logo-text{font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:1px;color:var(--text);line-height:1}
+.logo-text span{color:var(--accent)}
+
+.sidebar-nav{padding:12px 10px;display:flex;flex-direction:column;gap:2px;flex:1;overflow-y:auto}
+.nav-section-label{font-size:10px;font-weight:600;letter-spacing:1.2px;text-transform:uppercase;color:var(--text3);padding:10px 10px 4px}
+.nav-item{
+  display:flex;align-items:center;gap:10px;
+  padding:7px 10px;border-radius:var(--radius-sm);
+  cursor:pointer;color:var(--text2);font-size:13px;font-weight:500;
+  transition:all .15s;border:1px solid transparent;position:relative;
+}
+.nav-item:hover{background:var(--glass2);color:var(--text)}
+.nav-item.active{background:rgba(230,57,70,0.1);color:var(--text);border-color:rgba(230,57,70,0.25)}
+.nav-item.active::before{content:'';position:absolute;left:0;top:50%;transform:translateY(-50%);width:3px;height:60%;background:var(--accent);border-radius:0 3px 3px 0;box-shadow:0 0 10px var(--accent-glow)}
+.nav-icon{font-size:16px;width:20px;text-align:center;flex-shrink:0}
+.nav-badge{margin-left:auto;font-size:10px;font-family:'DM Mono',monospace;color:var(--text3);background:var(--bg3);padding:1px 7px;border-radius:99px;border:1px solid var(--border)}
+
+.sidebar-stats{padding:14px 16px;border-top:1px solid var(--border);margin-top:auto}
+.stat-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
+.stat-label{font-size:11px;color:var(--text3)}
+.stat-value{font-size:11px;font-family:'DM Mono',monospace;color:var(--text2)}
+.loading-bar{height:2px;background:var(--bg4);border-radius:99px;overflow:hidden;margin-top:8px}
+.loading-bar-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:99px;animation:shimmer 1.5s ease-in-out infinite}
+@keyframes shimmer{0%{width:0;margin-left:0}50%{width:60%;margin-left:20%}100%{width:0;margin-left:100%}}
+
+/* ── MAIN ── */
+.main{flex:1;display:flex;flex-direction:column;min-width:0;background:var(--bg);min-height:0;overflow:visible}
+
+/* ── TOPBAR ── */
+.topbar{
+  height:52px;background:rgba(8,10,15,0.8);backdrop-filter:blur(20px);
+  border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:10px;padding:0 14px;
+  flex-shrink:0;position:relative;z-index:10;
+}
+.topbar-brand{font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:1px;color:var(--accent);display:none}
+.menu-btn{
+  width:34px;height:34px;border-radius:var(--radius-sm);
+  background:var(--glass);border:1px solid var(--border);
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;color:var(--text2);font-size:16px;
+  transition:all .15s;flex-shrink:0;
+}
+.menu-btn:hover{background:var(--glass2);color:var(--text)}
+
+.search-box{
+  flex:1;max-width:400px;position:relative;
+}
+.search-box input{
+  width:100%;background:var(--glass);border:1px solid var(--border);
+  color:var(--text);padding:8px 14px 8px 38px;border-radius:99px;
+  font-family:'Outfit',sans-serif;font-size:13px;outline:none;
+  transition:all .2s;
+}
+.search-box input:focus{background:var(--glass2);border-color:rgba(230,57,70,0.4);box-shadow:0 0 0 3px rgba(230,57,70,0.08)}
+.search-box input::placeholder{color:var(--text3)}
+.search-icon{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--text3);font-size:15px;pointer-events:none}
+
+.topbar-right{margin-left:auto;display:flex;align-items:center;gap:8px}
+.live-badge{
+  display:flex;align-items:center;gap:6px;
+  background:rgba(230,57,70,0.12);border:1px solid rgba(230,57,70,0.3);
+  color:var(--accent2);font-size:11px;font-weight:600;letter-spacing:.5px;
+  padding:4px 10px;border-radius:99px;text-transform:uppercase;
+}
+.live-dot{width:6px;height:6px;border-radius:50%;background:var(--accent);animation:livepulse 1.5s infinite}
+@keyframes livepulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(.8)}}
+
+/* ── CONTENT AREA ── */
+.content-wrap{flex:1;overflow:visible;display:flex;flex-direction:column;min-height:0}
+.channels-scroll{flex:1;overflow:visible;padding:16px 16px 8px;min-height:0}
+
+/* ── HERO (NOW PLAYING BAR) ── */
+.now-playing-bar{
+  background:linear-gradient(135deg,rgba(230,57,70,0.08) 0%,rgba(67,97,238,0.06) 100%);
+  border:1px solid rgba(230,57,70,0.15);
+  border-radius:var(--radius);margin-bottom:14px;
+  padding:10px 14px;display:flex;align-items:center;gap:12px;
+  position:relative;overflow:hidden;flex-shrink:0;
+}
+.now-playing-bar::before{
+  content:'';position:absolute;inset:0;
+  background:linear-gradient(90deg,rgba(230,57,70,0.04) 0%,transparent 60%);
+}
+.now-playing-thumb{
+  width:52px;height:52px;border-radius:10px;
+  background:var(--bg4);display:flex;align-items:center;justify-content:center;
+  font-size:22px;flex-shrink:0;overflow:hidden;
+  border:1px solid var(--border2);
+}
+.now-playing-thumb img{width:100%;height:100%;object-fit:contain}
+.now-playing-info{flex:1;min-width:0;position:relative}
+.now-playing-label{font-size:10px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--accent);margin-bottom:3px}
+.now-playing-name{font-size:16px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.now-playing-sub{font-size:12px;color:var(--text2)}
+.now-playing-actions{display:flex;gap:8px;flex-shrink:0;position:relative}
+
+/* ── SECTION HEADER ── */
+.section-header{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+.section-title{font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:.5px;color:var(--text)}
+.section-count{font-size:11px;font-family:'DM Mono',monospace;color:var(--text3);background:var(--bg3);padding:2px 8px;border-radius:99px;border:1px solid var(--border)}
+.section-actions{margin-left:auto;display:flex;gap:6px}
+
+/* ── PLAYLIST GROUP ── */
+.playlist-group{margin-bottom:24px}
+.group-header{
+  display:flex;align-items:center;gap:10px;
+  padding:8px 12px;background:var(--bg3);
+  border:1px solid var(--border);border-radius:var(--radius);
+  cursor:pointer;transition:all .15s;margin-bottom:0;
+  user-select:none;
+}
+.group-header:hover{background:var(--bg4);border-color:var(--border2)}
+.group-header.open{border-radius:var(--radius) var(--radius) 0 0;border-bottom-color:transparent}
+.group-dot{width:8px;height:8px;border-radius:50%;background:var(--accent);box-shadow:0 0 8px var(--accent-glow);flex-shrink:0}
+.group-name{font-size:13px;font-weight:600;color:var(--text);flex:1}
+.group-count{font-size:11px;font-family:'DM Mono',monospace;color:var(--text3)}
+.group-chevron{color:var(--text3);font-size:12px;transition:transform .2s;margin-left:4px}
+.group-chevron.open{transform:rotate(180deg)}
+
+.group-body{
+  border:1px solid var(--border);border-top:none;
+  border-radius:0 0 var(--radius) var(--radius);
+  background:rgba(13,16,24,0.5);padding:8px;
+}
+
+/* ── CHANNELS GRID ── */
+.channels-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(150px,1fr));
+  gap:6px;
+}
+
+/* ── CHANNEL CARD ── */
+.channel-card{
+  background:var(--card);border:1px solid var(--border);
+  border-radius:var(--radius-sm);padding:10px 6px 8px;
+  cursor:pointer;transition:all .2s cubic-bezier(.4,0,.2,1);
+  display:flex;flex-direction:column;align-items:center;gap:6px;
+  text-align:center;position:relative;overflow:hidden;
+}
+.channel-card::before{
+  content:'';position:absolute;inset:0;
+  background:linear-gradient(135deg,rgba(255,255,255,0.02),transparent);
+  pointer-events:none;
+}
+.channel-card:hover{
+  transform:translateY(-3px);
+  border-color:var(--border2);
+  box-shadow:0 8px 30px rgba(0,0,0,0.4),0 0 0 1px rgba(255,255,255,0.06);
+  background:var(--bg4);
+}
+.channel-card.playing{
+  border-color:rgba(230,57,70,0.5);
+  background:rgba(230,57,70,0.06);
+  box-shadow:0 0 20px rgba(230,57,70,0.15);
+}
+.channel-card.playing::after{
+  content:'';position:absolute;inset:0;
+  background:linear-gradient(135deg,rgba(230,57,70,0.05),transparent);
+}
+.ch-logo-wrap{
+  width:64px;height:64px;border-radius:8px;
+  background:var(--bg3);display:flex;align-items:center;justify-content:center;
+  overflow:hidden;border:1px solid var(--border);flex-shrink:0;
+  transition:box-shadow .2s;
+}
+.channel-card:hover .ch-logo-wrap{box-shadow:0 4px 16px rgba(0,0,0,0.4)}
+.channel-card.playing .ch-logo-wrap{box-shadow:0 0 14px var(--accent-glow);border-color:rgba(230,57,70,0.3)}
+.ch-logo-wrap img{width:100%;height:100%;object-fit:contain}
+.ch-initials{font-size:15px;font-weight:700;font-family:'DM Mono',monospace;color:var(--text3)}
+.ch-name{font-size:11px;color:var(--text2);line-height:1.3;word-break:break-word;max-width:100%;font-weight:500}
+.ch-fav{
+  position:absolute;top:6px;right:6px;
+  background:none;border:none;cursor:pointer;
+  color:var(--text3);font-size:12px;padding:3px;
+  transition:all .15s;line-height:1;z-index:2;
+}
+.ch-fav:hover,.ch-fav.on{color:#f4a32a;text-shadow:0 0 8px rgba(244,163,42,.5)}
+.ch-playing-pip{
+  position:absolute;top:6px;left:6px;
+  width:6px;height:6px;border-radius:50%;
+  background:var(--accent);box-shadow:0 0 8px var(--accent-glow);
+  animation:livepulse 1.5s infinite;z-index:2;
+}
+
+/* ── PAGINATION ── */
+.pagination{
+  display:flex;align-items:center;justify-content:center;
+  gap:4px;padding:10px 0 4px;
+}
+.pg-btn{
+  width:28px;height:28px;border-radius:6px;border:1px solid var(--border);
+  background:var(--bg3);color:var(--text2);cursor:pointer;font-size:12px;
+  display:flex;align-items:center;justify-content:center;
+  transition:all .15s;font-family:'Outfit',sans-serif;
+}
+.pg-btn.active{background:var(--accent);border-color:var(--accent);color:#fff;box-shadow:0 0 12px var(--accent-glow)}
+.pg-btn:hover:not(.active):not(:disabled){background:var(--bg4);color:var(--text)}
+.pg-btn:disabled{opacity:.3;cursor:default}
+
+/* ── PLAYER ── */
+/* player-dock replaced by player-panel */
+.player-inner{display:flex;align-items:stretch;min-height:0}
+.player-video-wrap{
+  flex:1;background:#000;position:relative;max-height:240px;
+  display:flex;align-items:center;justify-content:center;
+}
+.player-video-wrap video{width:100%;height:100%;max-height:240px;display:block;object-fit:contain}
+.player-overlay{
+  position:absolute;inset:0;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:10px;color:var(--text3);font-size:13px;background:var(--bg);
+}
+.player-overlay.hidden{display:none}
+.spinner{width:20px;height:20px;border:2px solid var(--border2);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.player-meta{
+  width:200px;min-width:200px;padding:16px;
+  border-left:1px solid var(--border);display:flex;flex-direction:column;gap:10px;
+}
+.player-empty-dock{
+  padding:28px 20px;text-align:center;color:var(--text3);font-size:13px;
+  display:flex;align-items:center;justify-content:center;gap:12px;
+  background:var(--bg2);
+}
+.player-ch-name{font-size:14px;font-weight:700;color:var(--text);line-height:1.3}
+.player-ch-meta{font-size:11px;color:var(--text3);margin-top:3px}
+.player-url{font-size:10px;color:var(--text3);font-family:'DM Mono',monospace;line-height:1.5;word-break:break-all;margin-top:auto;border-top:1px solid var(--border);padding-top:8px}
+
+/* ── BUTTONS ── */
+.btn{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:7px 14px;border-radius:var(--radius-sm);
+  border:1px solid var(--border2);background:var(--glass);
+  color:var(--text2);cursor:pointer;font-family:'Outfit',sans-serif;
+  font-size:13px;font-weight:500;transition:all .15s;white-space:nowrap;
+}
+.btn:hover{background:var(--glass2);color:var(--text);border-color:var(--border2)}
+.btn-primary{background:var(--accent);border-color:var(--accent);color:#fff;box-shadow:0 4px 16px var(--accent-glow)}
+.btn-primary:hover{background:#cc2f3b;border-color:#cc2f3b;color:#fff}
+.btn-sm{padding:5px 10px;font-size:12px}
+.btn-icon{padding:7px;border-radius:var(--radius-sm);width:34px;height:34px;justify-content:center}
+.btn-ghost{border-color:transparent;background:transparent;color:var(--text3)}
+.btn-ghost:hover{background:var(--glass);color:var(--text);border-color:var(--border)}
+
+/* ── MODAL ── */
+.modal-overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,.75);
+  z-index:200;display:flex;align-items:center;justify-content:center;
+  padding:16px;backdrop-filter:blur(8px);
+}
+.modal{
+  background:var(--bg2);border:1px solid var(--border2);
+  border-radius:var(--radius-xl);padding:28px;
+  width:100%;max-width:460px;max-height:90vh;overflow-y:auto;
+  box-shadow:0 24px 80px rgba(0,0,0,.6);
+  animation:modalIn .2s cubic-bezier(.4,0,.2,1);
+}
+@keyframes modalIn{from{opacity:0;transform:scale(.96) translateY(8px)}to{opacity:1;transform:none}}
+.modal-title{font-family:'Bebas Neue',sans-serif;font-size:24px;letter-spacing:.5px;color:var(--text);margin-bottom:20px}
+.form-group{margin-bottom:16px}
+.form-label{font-size:11px;font-weight:600;letter-spacing:.8px;text-transform:uppercase;color:var(--text3);display:block;margin-bottom:6px}
+.form-input{
+  width:100%;background:var(--bg3);border:1px solid var(--border);
+  color:var(--text);padding:10px 14px;border-radius:var(--radius-sm);
+  font-family:'Outfit',sans-serif;font-size:13px;outline:none;transition:all .2s;
+}
+.form-input:focus{border-color:rgba(230,57,70,0.5);box-shadow:0 0 0 3px rgba(230,57,70,0.08)}
+.form-input::placeholder{color:var(--text3)}
+.form-hint{font-size:11px;color:var(--text3);margin-top:5px;line-height:1.5}
+.modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:22px}
+
+/* ── LIST ITEMS ── */
+.list-item{
+  display:flex;align-items:center;gap:12px;
+  padding:12px 14px;border:1px solid var(--border);border-radius:var(--radius);
+  background:var(--card);margin-bottom:8px;transition:all .15s;
+}
+.list-item:hover{border-color:var(--border2);background:var(--bg3)}
+.list-status{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.list-info{flex:1;min-width:0}
+.list-name{font-size:13px;font-weight:600;color:var(--text)}
+.list-url{font-size:11px;color:var(--text3);font-family:'DM Mono',monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+.list-meta{font-size:11px;color:var(--text3);margin-top:3px}
+.list-actions{display:flex;gap:4px;flex-shrink:0}
+
+/* ── EMPTY STATES ── */
+.empty-state{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:60px 20px;text-align:center;gap:12px;
+}
+.empty-icon{font-size:40px;opacity:.2}
+.empty-title{font-size:16px;font-weight:600;color:var(--text2)}
+.empty-sub{font-size:13px;color:var(--text3);max-width:300px;line-height:1.6}
+
+/* ── TOAST ── */
+.toast-wrap{position:fixed;bottom:24px;right:24px;z-index:300;display:flex;flex-direction:column;gap:8px;pointer-events:none}
+.toast{
+  background:var(--bg4);border:1px solid var(--border2);border-radius:var(--radius);
+  padding:11px 16px;font-size:13px;color:var(--text);
+  display:flex;align-items:center;gap:10px;
+  animation:toastIn .25s cubic-bezier(.4,0,.2,1);
+  box-shadow:0 8px 32px rgba(0,0,0,.5);pointer-events:all;
+}
+@keyframes toastIn{from{opacity:0;transform:translateX(20px) scale(.96)}to{opacity:1;transform:none}}
+.toast-icon{font-size:15px;flex-shrink:0}
+
+/* ── OVERLAY (mobile sidebar) ── */
+
+
+/* ===========================
+   NUEVO LAYOUT IPTV
+   =========================== */
+.body-wrap{flex:1;display:flex;min-height:0;overflow:hidden}
+.center-col{flex:1;min-width:0;overflow-y:auto}
+.player-panel{width:420px;min-width:420px;display:flex;flex-direction:column;background:var(--bg2);border-left:1px solid var(--border);overflow:hidden}
+.player-panel-header{padding:14px 18px;display:flex;align-items:center;gap:10px;font-size:12px;font-weight:700;text-transform:uppercase;color:var(--accent);border-bottom:1px solid var(--border)}
+.player-panel-video{position:relative;width:100%;aspect-ratio:16/9;background:#000}
+.player-panel-video video{width:100%;height:100%;object-fit:contain}
+.player-panel-info{flex:1;padding:16px;display:flex;flex-direction:column}
+.player-panel-empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:var(--text3)}
+@media(max-width:1200px){.player-panel{width:340px;min-width:340px}}
+@media(max-width:900px){.body-wrap{flex-direction:column}.player-panel{width:100%;min-width:100%;border-left:none;border-top:1px solid var(--border)}}
+
+/* ── RESPONSIVE ── */
+@media(max-width:900px){
+  .player-meta{display:none}
+}
+@media(max-width:700px){
+  .sidebar{position:fixed;top:0;left:0;bottom:0;z-index:100}
+  .sidebar.hidden{transform:translateX(-100%)}
+  .topbar-brand{display:block}
+  .now-playing-bar{padding:10px 12px}
+  .channels-grid{grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:6px}
+  .player-video-wrap{max-height:180px}
+  .player-video-wrap video{max-height:180px}
+  .channels-scroll{padding:12px}
+}
+@media(max-width:420px){
+  .channels-grid{grid-template-columns:repeat(auto-fill,minmax(80px,1fr))}
+}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState,useEffect,useRef,useCallback,useMemo,createContext,useContext } = React;
+const STORAGE_KEY='ts_lists_v2';
+const FAVS_KEY='ts_favs_v2';
+const PAGE_SIZE=60;
+const AppCtx=createContext(null);
+
+function uid(){return Math.random().toString(36).slice(2,9)}
+
+function parseM3U(text,listId,listName){
+  const lines=text.split('\n').map(l=>l.trim()).filter(Boolean);
+  const out=[];let cur={};
+  for(const line of lines){
+    if(line.startsWith('#EXTINF:')){
+      const name=(line.match(/,(.+)$/)||[])[1]?.trim()||'Sin nombre';
+      const logo=(line.match(/tvg-logo="([^"]+)"/i)||[])[1]||'';
+      const group=(line.match(/group-title="([^"]+)"/i)||[])[1]||'General';
+      cur={id:uid(),listId,listName,name,logo,group};
+    }else if(line&&!line.startsWith('#')&&cur.name){
+      out.push({...cur,url:line});cur={};
+    }
+  }
+  return out;
+}
+function initials(n){return(n||'?').split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2)}
+function useLs(key,def){
+  const[v,sv]=useState(()=>{try{const s=localStorage.getItem(key);return s?JSON.parse(s):def}catch{return def}});
+  const set=useCallback(x=>{sv(x);try{localStorage.setItem(key,JSON.stringify(x))}catch{}},[key]);
+  return[v,set];
+}
+
+/* ── Toast ── */
+function ToastProvider({children}){
+  const[toasts,setToasts]=useState([]);
+  const show=useCallback((msg,type='info')=>{
+    const id=uid();
+    setToasts(t=>[...t,{id,msg,type}]);
+    setTimeout(()=>setToasts(t=>t.filter(x=>x.id!==id)),3200);
+  },[]);
+  const icons={success:'✓',error:'✕',info:'📡'};
+  const colors={success:'#4caf82',error:'#e05555',info:'var(--accent2)'};
+  return(
+    <AppCtx.Provider value={{show}}>
+      {children}
+      <div className="toast-wrap">
+        {toasts.map(t=>(
+          <div key={t.id} className="toast">
+            <span className="toast-icon" style={{color:colors[t.type]}}>{icons[t.type]}</span>
+            {t.msg}
+          </div>
+        ))}
+      </div>
+    </AppCtx.Provider>
+  );
+}
+
+/* ── Video Player ── */
+function VideoPlayer({channel}){
+  const videoRef=useRef(null);const hlsRef=useRef(null);
+  const[state,setState]=useState('idle');// idle|loading|playing|error
+  useEffect(()=>{
+    if(!channel||!videoRef.current)return;
+    setState('loading');const video=videoRef.current;
+    if(hlsRef.current){hlsRef.current.destroy();hlsRef.current=null}
+    const url=channel.url;
+    const isHls=url.includes('.m3u8')||url.includes('m3u8')||!url.match(/\.(mp4|ts|mkv|avi)$/i);
+    if(Hls.isSupported()&&isHls){
+      const hls=new Hls({maxBufferLength:30,enableWorker:true});
+      hlsRef.current=hls;
+      hls.loadSource(url);hls.attachMedia(video);
+      hls.on(Hls.Events.MANIFEST_PARSED,()=>{setState('playing');video.play().catch(()=>{})});
+      hls.on(Hls.Events.ERROR,(_,d)=>{if(d.fatal)setState('error')});
+    }else{
+      video.src=url;
+      video.onloadeddata=()=>{setState('playing');video.play().catch(()=>{})};
+      video.onerror=()=>setState('error');
+    }
+    return()=>{if(hlsRef.current){hlsRef.current.destroy();hlsRef.current=null}};
+  },[channel?.url]);
+
+  if(!channel)return(
+    <div className="player-panel-empty">
+      <span style={{fontSize:32,opacity:.15}}>📺</span>
+      <span>Selecciona un canal</span>
+    </div>
+  );
+  return(
+    <>
+      <div className="player-panel-header">
+        <div className="live-dot" style={{flexShrink:0}}/>
+        Reproduciendo
+      </div>
+      <div className="player-panel-video">
+        <div className={`player-overlay${state==='playing'?' hidden':''}`}>
+          {state==='loading'&&<><div className="spinner"/><span>Conectando...</span></>}
+          {state==='error'&&<><span style={{fontSize:22}}>⚠</span><span>Stream no disponible</span></>}
+          {state==='idle'&&<span style={{fontSize:22,opacity:.3}}>📺</span>}
+        </div>
+        <video ref={videoRef} controls style={{opacity:state==='playing'?1:0,transition:'opacity .3s'}}/>
+      </div>
+      <div className="player-panel-info">
+        <div className="player-ch-name">{channel.name}</div>
+        <div className="player-ch-meta">{channel.listName} · {channel.group}</div>
+        <div className="player-url" style={{marginTop:'auto',paddingTop:8,borderTop:'1px solid var(--border)',fontSize:10,color:'var(--text3)',fontFamily:'DM Mono,monospace',wordBreak:'break-all',lineHeight:1.5}}>
+          {channel.url?.slice(0,100)}{channel.url?.length>100?'…':''}
+        </div>
+      </div>
+    </>
+  );
+}
+
+/* ── Channel Card ── */
+function CCard({ch,playing,fav,onPlay,onFav}){
+  const[imgErr,setImgErr]=useState(false);
+  return(
+    <div className={`channel-card${playing?' playing':''}`} onClick={onPlay} title={ch.name}>
+      {playing&&<div className="ch-playing-pip"/>}
+      <button className={`ch-fav${fav?' on':''}`} onClick={e=>{e.stopPropagation();onFav()}} title={fav?'Quitar favorito':'Agregar favorito'}>★</button>
+      <div className="ch-logo-wrap">
+        {ch.logo&&!imgErr
+          ?<img src={ch.logo} alt={ch.name} onError={()=>setImgErr(true)} loading="lazy"/>
+          :<span className="ch-initials">{initials(ch.name)}</span>
+        }
+      </div>
+      <div className="ch-name">{ch.name}</div>
+    </div>
+  );
+}
+
+/* ── Playlist group ── */
+function PlGroup({pl,channels,playingId,favs,onPlay,onFav}){
+  const[open,setOpen]=useState(true);
+  const[page,setPage]=useState(0);
+  const total=Math.ceil(channels.length/PAGE_SIZE);
+  const visible=channels.slice(page*PAGE_SIZE,(page+1)*PAGE_SIZE);
+  return(
+    <div className="playlist-group">
+      <div className={`group-header${open?' open':''}`} onClick={()=>setOpen(o=>!o)}>
+        <div className="group-dot"/>
+        <span className="group-name">{pl.name}</span>
+        <span className="group-count">{channels.length}</span>
+        <span className={`group-chevron${open?' open':''}`}>▾</span>
+      </div>
+      {open&&(
+        <div className="group-body">
+          <div className="channels-grid">
+            {visible.map(ch=>(
+              <CCard key={ch.id} ch={ch} playing={playingId===ch.id} fav={favs.has(ch.id)} onPlay={()=>onPlay(ch)} onFav={()=>onFav(ch.id)}/>
+            ))}
+          </div>
+          {total>1&&(
+            <div className="pagination">
+              <button className="pg-btn" disabled={page===0} onClick={()=>setPage(p=>p-1)}>‹</button>
+              {[...Array(Math.min(total,7))].map((_,i)=>{
+                const p=total>7?(page<4?i:page-3+i):i;
+                return p<total?<button key={p} className={`pg-btn${page===p?' active':''}`} onClick={()=>setPage(p)}>{p+1}</button>:null;
+              })}
+              <button className="pg-btn" disabled={page===total-1} onClick={()=>setPage(p=>p+1)}>›</button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── Modal ── */
+function Modal({initial,onSave,onClose}){
+  const[name,setName]=useState(initial?.name||'');
+  const[url,setUrl]=useState(initial?.url||'');
+  const{show}=useContext(AppCtx);
+  const save=()=>{
+    if(!name.trim()||!url.trim()){show('Completa todos los campos','error');return}
+    onSave({name:name.trim(),url:url.trim()});
+  };
+  return(
+    <div className="modal-overlay" onClick={e=>{if(e.target===e.currentTarget)onClose()}}>
+      <div className="modal">
+        <div className="modal-title">{initial?'Editar lista':'Nueva lista M3U'}</div>
+        <div className="form-group">
+          <label className="form-label">Nombre</label>
+          <input className="form-input" placeholder="ej: Canales Colombia" value={name} onChange={e=>setName(e.target.value)}/>
+        </div>
+        <div className="form-group">
+          <label className="form-label">URL de la lista .m3u / .m3u8</label>
+          <input className="form-input" placeholder="https://..." value={url} onChange={e=>setUrl(e.target.value)}/>
+          <div className="form-hint">💡 Acepta URLs públicas o privadas con credenciales en la URL.</div>
+        </div>
+        <div className="modal-actions">
+          <button className="btn" onClick={onClose}>Cancelar</button>
+          <button className="btn btn-primary" onClick={save}>Guardar</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Lists view ── */
+function ListsView({playlists,channels,onAdd,onEdit,onDelete,onReload}){
+  return(
+    <div style={{padding:'16px 20px'}}>
+      <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:18}}>
+        <div style={{fontFamily:'Bebas Neue',fontSize:22,letterSpacing:.5}}>Mis listas M3U</div>
+        <button className="btn btn-primary btn-sm" style={{marginLeft:'auto'}} onClick={onAdd}>+ Nueva lista</button>
+      </div>
+      {playlists.length===0&&(
+        <div className="empty-state">
+          <div className="empty-icon">📡</div>
+          <div className="empty-title">Sin listas</div>
+          <div className="empty-sub">Agrega tu primera lista M3U con el botón de arriba.</div>
+        </div>
+      )}
+      {playlists.map(pl=>{
+        const count=(channels[pl.id]||[]).length;
+        return(
+          <div key={pl.id} className="list-item">
+            <div className="list-status" style={{background:count>0?'#4caf82':'var(--text3)'}}/>
+            <div className="list-info">
+              <div className="list-name">{pl.name}</div>
+              <div className="list-url">{pl.url}</div>
+              <div className="list-meta">{count>0?`${count.toLocaleString()} canales`:'Sin cargar'}</div>
+            </div>
+            <div className="list-actions">
+              <button className="btn btn-icon btn-ghost" title="Recargar" onClick={()=>onReload(pl)}>↻</button>
+              <button className="btn btn-icon btn-ghost" title="Editar" onClick={()=>onEdit(pl)}>✎</button>
+              <button className="btn btn-icon btn-ghost" title="Eliminar" style={{color:'var(--text3)'}} onMouseEnter={e=>e.currentTarget.style.color='#e05555'} onMouseLeave={e=>e.currentTarget.style.color='var(--text3)'} onClick={()=>onDelete(pl.id)}>✕</button>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ── App ── */
+function App(){
+  const[playlists,setPlaylists]=useLs(STORAGE_KEY,[]);
+  const[favIds,setFavIds]=useLs(FAVS_KEY,[]);
+  const[channels,setChannels]=useState({});
+  const[current,setCurrent]=useState(null);
+  const[search,setSearch]=useState('');
+  const[tab,setTab]=useState('channels');
+  const[modal,setModal]=useState(null);
+  const[sidebarOpen,setSidebarOpen]=useState(true);
+  const[loading,setLoading]=useState({});
+  const{show}=useContext(AppCtx);
+
+  const favSet=useMemo(()=>new Set(favIds),[favIds]);
+
+  const fetchWithProxies=useCallback(async(url)=>{
+    const enc=encodeURIComponent(url);
+    const TIMEOUT=12000;
+    const race=(fn)=>Promise.race([fn(),new Promise((_,r)=>setTimeout(()=>r(new Error('timeout')),TIMEOUT))]);
+    const isM3U=(t)=>t&&(t.includes('#EXTINF')||t.includes('#EXTM3U'));
+
+    const proxies=[
+      // 1. Directo (funciona si el servidor permite CORS)
+      {label:'direct',      fn:()=>fetch(url,{mode:'cors'})},
+      // 2. allorigins — muy confiable para pastebin y similares
+      {label:'allorigins',  fn:()=>fetch(`https://api.allorigins.win/raw?url=${enc}`)},
+      // 3. corsproxy.io
+      {label:'corsproxy',   fn:()=>fetch(`https://corsproxy.io/?${enc}`)},
+      // 4. htmldriven cors-anywhere público
+      {label:'htmldriven',  fn:()=>fetch(`https://cors-anywhere.herokuapp.com/${url}`,{headers:{'X-Requested-With':'XMLHttpRequest'}})},
+      // 5. thingproxy
+      {label:'thingproxy',  fn:()=>fetch(`https://thingproxy.freeboard.io/fetch/${url}`)},
+      // 6. allorigins con endpoint /get (devuelve JSON con .contents)
+      {label:'allorigins2', fn:async()=>{
+        const r=await fetch(`https://api.allorigins.win/get?url=${enc}`);
+        if(!r.ok)throw new Error('HTTP '+r.status);
+        const j=await r.json();
+        // Devuelve fake Response con el contenido
+        return new Response(j.contents,{status:200});
+      }},
+      // 7. workers.dev proxy abierto
+      {label:'workers',     fn:()=>fetch(`https://api.codetabs.com/v1/proxy?quest=${url}`)},
+    ];
+
+    let last;
+    for(const p of proxies){
+      try{
+        console.info(`[TeleStream] Intentando proxy: ${p.label}`);
+        const res=await race(p.fn);
+        if(!res.ok)throw new Error('HTTP '+res.status);
+        const text=await res.text();
+        if(isM3U(text)){console.info(`[TeleStream] ✓ Proxy "${p.label}" funcionó`);return text;}
+        throw new Error('Respuesta no es M3U válido');
+      }catch(e){
+        last=e;
+        console.warn(`[TeleStream] ✗ Proxy "${p.label}" falló:`,e.message);
+      }
+    }
+    throw new Error(`Failed to fetch — todos los proxies fallaron. Último: ${last?.message}`);
+  },[]);
+
+  const loadPlaylist=useCallback(async(pl)=>{
+    setLoading(l=>({...l,[pl.id]:true}));
+    try{
+      const text=await fetchWithProxies(pl.url);
+      const chs=parseM3U(text,pl.id,pl.name);
+      setChannels(prev=>({...prev,[pl.id]:chs}));
+      setPlaylists(pls=>pls.map(p=>p.id===pl.id?{...p,count:chs.length}:p));
+      show(`${pl.name}: ${chs.length} canales`,'success');
+    }catch(e){show(`Error "${pl.name}": ${e.message}`,'error')}
+    setLoading(l=>({...l,[pl.id]:false}));
+  },[fetchWithProxies]);
+
+  useEffect(()=>{playlists.forEach(pl=>{if(!channels[pl.id])loadPlaylist(pl)})},[]);
+
+  const addList=useCallback(({name,url})=>{
+    const pl={id:uid(),name,url,count:0};
+    setPlaylists(p=>[...p,pl]);loadPlaylist(pl);setModal(null);show('Lista agregada','success');
+  },[playlists]);
+
+  const editList=useCallback(({name,url})=>{
+    const pl=modal.edit;
+    setPlaylists(p=>p.map(x=>x.id===pl.id?{...x,name,url}:x));
+    loadPlaylist({...pl,name,url});setModal(null);show('Lista actualizada','success');
+  },[playlists,modal]);
+
+  const deleteList=useCallback(id=>{
+    setPlaylists(p=>p.filter(x=>x.id!==id));
+    setChannels(c=>{const n={...c};delete n[id];return n});
+    show('Lista eliminada');
+  },[playlists]);
+
+  const toggleFav=useCallback(id=>{
+    setFavIds(ids=>ids.includes(id)?ids.filter(x=>x!==id):[...ids,id]);
+  },[]);
+
+  const flat=useMemo(()=>Object.values(channels).flat(),[channels]);
+  const favChs=useMemo(()=>flat.filter(c=>favSet.has(c.id)),[flat,favSet]);
+  const isLoading=Object.values(loading).some(Boolean);
+
+  const filter=useCallback(chs=>{
+    if(!search)return chs;
+    const q=search.toLowerCase();
+    return chs.filter(c=>c.name.toLowerCase().includes(q)||c.group.toLowerCase().includes(q));
+  },[search]);
+
+  const grouped=useMemo(()=>playlists.map(pl=>({pl,chs:filter(channels[pl.id]||[])})).filter(g=>g.chs.length>0),[playlists,channels,filter]);
+  const favFiltered=useMemo(()=>filter(favChs),[favChs,filter]);
+
+  const navItems=[
+    {id:'channels',icon:'📺',label:'En vivo',count:flat.length},
+    {id:'favorites',icon:'★',label:'Favoritos',count:favChs.length},
+    {id:'lists',icon:'📋',label:'Mis listas',count:playlists.length},
+  ];
+
+  return(
+    <div className="app">
+      {/* Sidebar overlay mobile */}
+      
+
+      {/* Sidebar */}
+      <div className={`sidebar${sidebarOpen?'':' hidden'}`}>
+        <div className="sidebar-logo">
+          <div className="logo-mark">📡</div>
+          <div className="logo-text">Tele<span>Stream</span></div>
+          <button className="btn btn-icon btn-ghost" style={{marginLeft:'auto',color:'var(--text3)'}} onClick={()=>setSidebarOpen(false)}>✕</button>
+        </div>
+        <nav className="sidebar-nav">
+          <div className="nav-section-label">Menú</div>
+          {navItems.map(item=>(
+            <div key={item.id} className={`nav-item${tab===item.id?' active':''}`} onClick={()=>setTab(item.id)}>
+              <span className="nav-icon">{item.icon}</span>
+              <span>{item.label}</span>
+              <span className="nav-badge">{item.count.toLocaleString()}</span>
+            </div>
+          ))}
+        </nav>
+        {isLoading&&(
+          <div style={{padding:'0 16px 10px'}}>
+            <div style={{fontSize:11,color:'var(--text3)',marginBottom:4}}>Cargando listas…</div>
+            <div className="loading-bar"><div className="loading-bar-fill"/></div>
+          </div>
+        )}
+        <div className="sidebar-stats">
+          <div className="stat-row"><span className="stat-label">Canales totales</span><span className="stat-value">{flat.length.toLocaleString()}</span></div>
+          <div className="stat-row"><span className="stat-label">Favoritos</span><span className="stat-value">{favChs.length}</span></div>
+          <div className="stat-row"><span className="stat-label">Listas</span><span className="stat-value">{playlists.length}</span></div>
+        </div>
+      </div>
+
+      {/* Main */}
+      <div className="main">
+        {/* Topbar */}
+        <div className="topbar">
+          <button className="menu-btn" onClick={()=>setSidebarOpen(o=>!o)}>☰</button>
+          <span className="topbar-brand">TeleStream</span>
+          <div className="search-box">
+            <span className="search-icon">🔍</span>
+            <input placeholder="Buscar canales, grupos…" value={search} onChange={e=>setSearch(e.target.value)}/>
+          </div>
+          <div className="topbar-right">
+            {current&&(
+              <div className="live-badge">
+                <div className="live-dot"/>
+                EN VIVO
+              </div>
+            )}
+            {tab!=='lists'&&<button className="btn btn-sm" onClick={()=>setTab('lists')}>+ Lista</button>}
+          </div>
+        </div>
+
+        {/* Body: canales izquierda + reproductor derecho */}
+        <div className="body-wrap">
+          <div className="center-col">
+            <div className="content-wrap">
+              {tab==='lists'?(
+                <div style={{overflowY:'auto',flex:1}}>
+                  <ListsView playlists={playlists} channels={channels} onAdd={()=>setModal('add')} onEdit={pl=>setModal({edit:pl})} onDelete={deleteList} onReload={loadPlaylist}/>
+                </div>
+              ):(
+                <div className="channels-scroll">
+                  {current&&(
+                    <div className="now-playing-bar">
+                      <div className="now-playing-thumb">
+                        {current.logo?<img src={current.logo} alt={current.name} onError={e=>e.target.style.display='none'}/>:<span style={{fontSize:20}}>📺</span>}
+                      </div>
+                      <div className="now-playing-info">
+                        <div className="now-playing-label">Reproduciendo ahora</div>
+                        <div className="now-playing-name">{current.name}</div>
+                        <div className="now-playing-sub">{current.listName} · {current.group}</div>
+                      </div>
+                      <div className="now-playing-actions">
+                        <button style={{color:favSet.has(current.id)?'#f4a32a':'var(--text2)'}} className="btn btn-sm" onClick={()=>toggleFav(current.id)}>
+                          {favSet.has(current.id)?'★ Favorito':'☆ Favorito'}
+                        </button>
+                        <button className="btn btn-sm btn-ghost" onClick={()=>setCurrent(null)}>✕</button>
+                      </div>
+                    </div>
+                  )}
+                  {tab==='favorites'&&(
+                    favFiltered.length===0?(
+                      <div className="empty-state">
+                        <div className="empty-icon">★</div>
+                        <div className="empty-title">{search?'Sin resultados':'Sin favoritos aún'}</div>
+                        <div className="empty-sub">Marca canales con ★ para acceder rápido aquí.</div>
+                      </div>
+                    ):(
+                      <div className="playlist-group">
+                        <div className="group-header open" style={{cursor:'default'}}>
+                          <div className="group-dot" style={{background:'#f4a32a',boxShadow:'0 0 8px rgba(244,163,42,.4)'}}/>
+                          <span className="group-name">Favoritos</span>
+                          <span className="group-count">{favFiltered.length}</span>
+                        </div>
+                        <div className="group-body">
+                          <div className="channels-grid">
+                            {favFiltered.map(ch=>(
+                              <CCard key={ch.id} ch={ch} playing={current?.id===ch.id} fav={favSet.has(ch.id)} onPlay={()=>setCurrent(ch)} onFav={()=>toggleFav(ch.id)}/>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  )}
+                  {tab==='channels'&&(
+                    grouped.length===0?(
+                      <div className="empty-state">
+                        <div className="empty-icon">📡</div>
+                        <div className="empty-title">{search?`Sin resultados para "${search}"`:'Sin canales'}</div>
+                        <div className="empty-sub">Agrega una lista M3U desde "+ Lista" en la barra superior.</div>
+                      </div>
+                    ):(
+                      grouped.map(({pl,chs})=>(
+                        <PlGroup key={pl.id} pl={pl} channels={chs} playingId={current?.id} favs={favSet} onPlay={setCurrent} onFav={toggleFav}/>
+                      ))
+                    )
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+          {/* Panel reproductor derecho */}
+          <div className="player-panel">
+            <VideoPlayer channel={current}/>
+          </div>
+        </div>
+      </div>
+
+      {/* Modals */}
+      {modal==='add'&&<Modal onSave={addList} onClose={()=>setModal(null)}/>}
+      {modal?.edit&&<Modal initial={modal.edit} onSave={editList} onClose={()=>setModal(null)}/>}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<ToastProvider><App/></ToastProvider>);
+</script>
+</body>
+</html>
